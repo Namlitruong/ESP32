@@ -13,7 +13,7 @@
 
 // define two tasks for Blink & AnalogRead
 void TaskBlink( void *pvParameters );
-void TaskAnalogReadA3( void *pvParameters );
+void TaskMQTT( void *pvParameters );
 
 const char* mqttServer = "broker.hivemq.com";
 const char* mqttUser = "yourMQTTuser";
@@ -41,8 +41,8 @@ void setup() {
     ,  ARDUINO_RUNNING_CORE);
 
   xTaskCreatePinnedToCore(
-    TaskAnalogReadA3
-    ,  "AnalogReadA3"
+    TaskMQTT
+    ,  "TaskMQTT"
     ,  8192  // Stack size
     ,  NULL
     ,  1  // Priority
@@ -65,14 +65,6 @@ void TaskBlink(void *pvParameters)  // This is a task.
 {
   (void) pvParameters;
 
-/*
-  Blink
-  Turns on an LED on for one second, then off for one second, repeatedly.
-    
-  If you want to know what pin the on-board LED is connected to on your ESP32 model, check
-  the Technical Specs of your board.
-*/
-
   // initialize digital LED_BUILTIN on pin 13 as an output.
   pinMode(LED_BUILTIN, OUTPUT);
 
@@ -85,39 +77,47 @@ void TaskBlink(void *pvParameters)  // This is a task.
   }
 }
 
-void TaskAnalogReadA3(void *pvParameters)  // This is a task.
+void TaskMQTT(void *pvParameters)  // This is a task.
 {
   (void) pvParameters;
-  
-/*
-  AnalogReadSerial
-  Reads an analog input on pin A3, prints the result to the serial monitor.
-  Graphical representation is available using serial plotter (Tools > Serial Plotter menu)
-  Attach the center pin of a potentiometer to pin A3, and the outside pins to +5V and ground.
-
-  This example code is in the public domain.
-*/
   ConnectToWiFi ("thao", "thao12345");
   client.setServer(mqttServer, 1883);
-  ConnectMQTT();
+  client.setCallback (callback);
+  ConnectMQTT("ESP32", "Center610", 0);
   for (;;)
   {
     if (!client.connected()) {
-      ConnectMQTT();
+      ConnectMQTT("ESP32", "Center610", 0);
     }
     client.loop();
-    client.publish("rmit123", "Hello from ESP32");
-    vTaskDelay(1000);
+    //vTaskDelay(500);
+    //Serial.println (PublishMQTT ("ESP32", 5000,"Hello", "From", "ESP32"));
   }
 }
 
-void ConnectMQTT() {
+void callback(char* topic, byte* payload, unsigned int length) {
+  String arrivedData;
+  Serial.print("Message arrived [");
+  Serial.print(topic);
+  Serial.print("] ");
+  for (int i=0;i<length;i++) {
+    arrivedData += (char)payload[i];
+  }
+  Serial.println();
+  Serial.println("########################");
+  Serial.println(arrivedData);
+  Serial.println("########################");
+  Serial.println();
+}
+
+void ConnectMQTT(const char* CliendID, const char* SubTopic, int qos) {
   // Loop until we're reconnected
   while (!client.connected()) {
     Serial.println ("Attempting MQTT connection...");
     // Attempt to connect, just a name to identify the client
-    if (client.connect("ESP32Client")) {
+    if (client.connect(CliendID)) {
       Serial.println("connected");
+      client.subscribe (SubTopic, qos);
       // Once connected, publish an announcement...
     } else {
       Serial.print("failed, rc=");
@@ -142,4 +142,16 @@ int ConnectToWiFi (const char* ssid, const char* password){
   Serial.println(WiFi.localIP());
 
   return WiFi.status();
+}
+
+const char* PublishMQTT (const char *ClientID,int SendingInterval ,char *str1, char *str2, char *str3){
+  char *Buffer = (char *) malloc(1 + strlen(str1)+ strlen(str2)+ strlen(str3));
+  strcpy(Buffer, str1);
+  strcat(Buffer, ";");
+  strcat(Buffer, str2);
+  strcat(Buffer, ";");
+  strcat(Buffer, str3);
+  client.publish( ClientID, Buffer);
+  vTaskDelay(SendingInterval);
+  return "Sending Data";
 }
