@@ -38,7 +38,7 @@ void setup() {
   xTaskCreatePinnedToCore(
     TaskBlink
     ,  "TaskBlink"   // A name just for humans
-    ,  8192  // This stack size can be checked & adjusted by reading the Stack Highwater
+    ,  16384  // This stack size can be checked & adjusted by reading the Stack Highwater
     ,  NULL
     ,  2  // Priority, with 3 (configMAX_PRIORITIES - 1) being the highest, and 0 being the lowest.
     ,  &Task2Blink 
@@ -47,7 +47,7 @@ void setup() {
   xTaskCreatePinnedToCore(
     TaskMQTT
     ,  "TaskMQTT"
-    ,  8192  // Stack size
+    ,  16384  // Stack size
     ,  NULL
     ,  1  // Priority
     ,  &Task1MQTT 
@@ -82,6 +82,8 @@ void TaskBlink(void *pvParameters)  // This is a task.
     char *Data = (char *) calloc(10, sizeof(char));
     sprintf(Data, "%d", RFIDCard ());
     Serial.println (PublishMQTT ("ESP32123", 0,Data, "From", "ESP32"));
+    Data = NULL;
+    free (Data);
     xSemaphoreGive(RFIDMutex);
     }
   }
@@ -163,6 +165,8 @@ const char* PublishMQTT (const char *ClientID,int SendingInterval ,char *str1, c
   strcat(Buffer, str3);
   client.publish( ClientID, Buffer);
   vTaskDelay(SendingInterval);
+  Buffer = NULL;
+  free (Buffer);
   return "Sending Data";
 }
 
