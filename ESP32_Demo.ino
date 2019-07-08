@@ -77,12 +77,11 @@ void TaskBlink(void *pvParameters)  // This is a task.
   RFIDMutex = xSemaphoreCreateMutex();
   for (;;) // A Task shall never return or exit.
   {
-    //vTaskDelay(500);  // one tick delay (15ms) in between reads for stability
     if (mfrc522.PICC_IsNewCardPresent() && mfrc522.PICC_ReadCardSerial()) {
     xSemaphoreTake(RFIDMutex,portMAX_DELAY);
-    char Data [10];
+    char *Data = (char *) calloc(10, sizeof(char));
     sprintf(Data, "%d", RFIDCard ());
-    Serial.println (PublishMQTT ("ESP32", 0,"Hello", "From", "ESP32"));
+    Serial.println (PublishMQTT ("ESP32123", 0,Data, "From", "ESP32"));
     xSemaphoreGive(RFIDMutex);
     }
   }
@@ -92,7 +91,7 @@ void TaskMQTT(void *pvParameters)  // This is a task.
 {
   (void) pvParameters;
   vTaskSuspend(Task2Blink);
-  ConnectToWiFi ("thao", "thao12345");
+  ConnectToWiFi ("Namli", "123123123");
   client.setServer(mqttServer, 1883);
   client.setCallback (callback);
   ConnectMQTT("ESP32", "Center610", 0);
@@ -103,8 +102,6 @@ void TaskMQTT(void *pvParameters)  // This is a task.
       ConnectMQTT("ESP32", "Center610", 0);
     }
     client.loop();
-    //vTaskDelay(500);
-    //Serial.println (PublishMQTT ("ESP32", 5000,"Hello", "From", "ESP32"));
   }
 }
 
