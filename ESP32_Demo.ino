@@ -4,9 +4,9 @@
 #define ARDUINO_RUNNING_CORE 1
 #endif
 
-#ifndef LED_BUILTIN
-#define LED_BUILTIN 18
-#endif
+#define mqttServer "broker.hivemq.com"
+#define WiFiSSID "Namli"
+#define WiFiPass "123123123"
 
 #include <WiFi.h>
 #include <PubSubClient.h>
@@ -15,14 +15,11 @@
 
 MFRC522 mfrc522(5, 13); 
 
-// define two tasks for Blink & AnalogRead
 void TaskBlink( void *pvParameters );
 void TaskMQTT( void *pvParameters );
 
 TaskHandle_t Task2Blink;
 TaskHandle_t Task1MQTT;
-
-const char* mqttServer = "broker.hivemq.com";
  
 WiFiClient espClient;
 PubSubClient client(espClient);
@@ -69,8 +66,6 @@ void TaskBlink(void *pvParameters)  // This is a task.
 {
   (void) pvParameters;
 
-  // initialize digital LED_BUILTIN on pin 13 as an output.
-  pinMode(LED_BUILTIN, OUTPUT);
   SPI.begin(); 
   mfrc522.PCD_Init();
   SemaphoreHandle_t RFIDMutex;
@@ -93,7 +88,7 @@ void TaskMQTT(void *pvParameters)  // This is a task.
 {
   (void) pvParameters;
   vTaskSuspend(Task2Blink);
-  ConnectToWiFi ("Namli", "123123123");
+  ConnectToWiFi (WiFiSSID, WiFiPass);
   client.setServer(mqttServer, 1883);
   client.setCallback (callback);
   ConnectMQTT("ESP32", "Center610", 0);
@@ -172,7 +167,6 @@ const char* PublishMQTT (const char *ClientID,int SendingInterval ,char *str1, c
 
 unsigned long RFIDCard (){
   unsigned long UID = 0, UIDtemp = 0;
-  //UID = 0;
   for (byte i = 0; i < mfrc522.uid.size; i++) {
     UIDtemp = mfrc522.uid.uidByte[i];
     UID = UID*256+UIDtemp;
