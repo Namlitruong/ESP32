@@ -10,14 +10,19 @@
 
 #include <WiFi.h>
 #include <PubSubClient.h>
+#include <SPI.h>
+#include <MFRC522.h>
+
+MFRC522 mfrc522(5, 13); 
 
 // define two tasks for Blink & AnalogRead
 void TaskBlink( void *pvParameters );
 void TaskMQTT( void *pvParameters );
 
+TaskHandle_t Task2Blink;
+TaskHandle_t Task1MQTT;
+
 const char* mqttServer = "broker.hivemq.com";
-const char* mqttUser = "yourMQTTuser";
-const char* mqttPassword = "yourMQTTpassword";
  
 WiFiClient espClient;
 PubSubClient client(espClient);
@@ -29,15 +34,14 @@ void setup() {
   
   // initialize serial communication at 115200 bits per second:
   Serial.begin(115200);
-  
   // Now set up two tasks to run independently.
   xTaskCreatePinnedToCore(
     TaskBlink
     ,  "TaskBlink"   // A name just for humans
-    ,  1024  // This stack size can be checked & adjusted by reading the Stack Highwater
+    ,  8192  // This stack size can be checked & adjusted by reading the Stack Highwater
     ,  NULL
     ,  2  // Priority, with 3 (configMAX_PRIORITIES - 1) being the highest, and 0 being the lowest.
-    ,  NULL 
+    ,  &Task2Blink 
     ,  ARDUINO_RUNNING_CORE);
 
   xTaskCreatePinnedToCore(
@@ -46,7 +50,7 @@ void setup() {
     ,  8192  // Stack size
     ,  NULL
     ,  1  // Priority
-    ,  NULL 
+    ,  &Task1MQTT 
     ,  ARDUINO_RUNNING_CORE);
 
   // Now the task scheduler, which takes over control of scheduling individual tasks, is automatically started.
@@ -67,23 +71,32 @@ void TaskBlink(void *pvParameters)  // This is a task.
 
   // initialize digital LED_BUILTIN on pin 13 as an output.
   pinMode(LED_BUILTIN, OUTPUT);
-
+  SPI.begin(); 
+  mfrc522.PCD_Init();
+  SemaphoreHandle_t RFIDMutex;
+  RFIDMutex = xSemaphoreCreateMutex();
   for (;;) // A Task shall never return or exit.
   {
-    digitalWrite(LED_BUILTIN, HIGH);   // turn the LED on (HIGH is the voltage level)
-    vTaskDelay(100);  // one tick delay (15ms) in between reads for stability
-    digitalWrite(LED_BUILTIN, LOW);    // turn the LED off by making the voltage LOW
-    vTaskDelay(100);  // one tick delay (15ms) in between reads for stability
+    //vTaskDelay(500);  // one tick delay (15ms) in between reads for stability
+    if (mfrc522.PICC_IsNewCardPresent() && mfrc522.PICC_ReadCardSerial()) {
+    xSemaphoreTake(RFIDMutex,portMAX_DELAY);
+    char Data [10];
+    sprintf(Data, "%d", RFIDCard ());
+    Serial.println (PublishMQTT ("ESP32", 0,"Hello", "From", "ESP32"));
+    xSemaphoreGive(RFIDMutex);
+    }
   }
 }
 
 void TaskMQTT(void *pvParameters)  // This is a task.
 {
   (void) pvParameters;
+  vTaskSuspend(Task2Blink);
   ConnectToWiFi ("thao", "thao12345");
   client.setServer(mqttServer, 1883);
   client.setCallback (callback);
   ConnectMQTT("ESP32", "Center610", 0);
+  vTaskResume(Task2Blink);
   for (;;)
   {
     if (!client.connected()) {
@@ -154,4 +167,15 @@ const char* PublishMQTT (const char *ClientID,int SendingInterval ,char *str1, c
   client.publish( ClientID, Buffer);
   vTaskDelay(SendingInterval);
   return "Sending Data";
+}
+
+unsigned long RFIDCard (){
+  unsigned long UID = 0, UIDtemp = 0;
+  //UID = 0;
+  for (byte i = 0; i < mfrc522.uid.size; i++) {
+    UIDtemp = mfrc522.uid.uidByte[i];
+    UID = UID*256+UIDtemp;
+  }
+  mfrc522.PICC_HaltA(); 
+  return UID;
 }
