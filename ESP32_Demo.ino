@@ -4,9 +4,11 @@
 #define ARDUINO_RUNNING_CORE 1
 #endif
 
-#define mqttServer "broker.hivemq.com"
+#define mqttServer "192.168.137.141"
+//#define mqttServer "broker.hivemq.com "
 #define WiFiSSID "Namli"
 #define WiFiPass "123123123"
+#define PubTopic "ESP32"
 
 #include <WiFi.h>
 #include <PubSubClient.h>
@@ -74,9 +76,14 @@ void TaskBlink(void *pvParameters)  // This is a task.
   {
     if (mfrc522.PICC_IsNewCardPresent() && mfrc522.PICC_ReadCardSerial()) {
     xSemaphoreTake(RFIDMutex,portMAX_DELAY);
-    char *Data = (char *) calloc(10, sizeof(char));
-    sprintf(Data, "%d", RFIDCard ());
-    Serial.println (PublishMQTT ("ESP32123", 0,Data, "From", "ESP32"));
+    char *Data = (char *) calloc(10, sizeof(char*));
+    sprintf(Data, "%u", RFIDCard ());
+    vTaskSuspend(Task1MQTT);
+    while (client.state()<0){
+      ConnectMQTT(PubTopic, "Center610", 1);
+    }
+    Serial.println (PublishMQTT (PubTopic, 0,Data, "/0", "/0"));
+    vTaskResume(Task1MQTT);
     Data = NULL;
     free (Data);
     xSemaphoreGive(RFIDMutex);
@@ -91,12 +98,12 @@ void TaskMQTT(void *pvParameters)  // This is a task.
   ConnectToWiFi (WiFiSSID, WiFiPass);
   client.setServer(mqttServer, 1883);
   client.setCallback (callback);
-  ConnectMQTT("ESP32", "Center610", 0);
+  ConnectMQTT(PubTopic, "Center610", 1);
   vTaskResume(Task2Blink);
   for (;;)
   {
     if (!client.connected()) {
-      ConnectMQTT("ESP32", "Center610", 0);
+      ConnectMQTT(PubTopic, "Center610", 1);
     }
     client.loop();
   }
