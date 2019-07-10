@@ -4,10 +4,10 @@
 #define ARDUINO_RUNNING_CORE 1
 #endif
 
-#define mqttServer "192.168.137.141"
+#define mqttServer "192.168.137.69"
 //#define mqttServer "broker.hivemq.com "
-#define WiFiSSID "Namli"
-#define WiFiPass "123123123"
+#define WiFiSSID "thao"
+#define WiFiPass "thao12345"
 #define PubTopic "ESP32"
 
 #include <WiFi.h>
@@ -26,8 +26,10 @@ TaskHandle_t Task1MQTT;
 WiFiClient espClient;
 PubSubClient client(espClient);
 
-// the setup function runs once when you press reset or power the board
-
+//#######################################
+//----------GLOBAL VARIABLES------------
+char Data[10] = "";
+//#######################################
 
 void setup() {
   
@@ -76,16 +78,8 @@ void TaskBlink(void *pvParameters)  // This is a task.
   {
     if (mfrc522.PICC_IsNewCardPresent() && mfrc522.PICC_ReadCardSerial()) {
     xSemaphoreTake(RFIDMutex,portMAX_DELAY);
-    char *Data = (char *) calloc(10, sizeof(char*));
     sprintf(Data, "%u", RFIDCard ());
-    vTaskSuspend(Task1MQTT);
-    while (client.state()<0){
-      ConnectMQTT(PubTopic, "Center610", 1);
-    }
-    Serial.println (PublishMQTT (PubTopic, 0,Data, "/0", "/0"));
-    vTaskResume(Task1MQTT);
-    Data = NULL;
-    free (Data);
+    Serial.println (PublishMQTT (PubTopic, 0,Data, "/0", "/0")); 
     xSemaphoreGive(RFIDMutex);
     }
   }
@@ -94,6 +88,8 @@ void TaskBlink(void *pvParameters)  // This is a task.
 void TaskMQTT(void *pvParameters)  // This is a task.
 {
   (void) pvParameters;
+  SemaphoreHandle_t RFIDMutex;
+  RFIDMutex = xSemaphoreCreateMutex();
   vTaskSuspend(Task2Blink);
   ConnectToWiFi (WiFiSSID, WiFiPass);
   client.setServer(mqttServer, 1883);
